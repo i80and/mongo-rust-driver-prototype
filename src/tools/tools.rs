@@ -13,12 +13,16 @@
  * limitations under the License.
  */
 
-#[link(name="tools", vers="0.1.0", author="austin.estep@10gen.com, jaoke.chinlee@10gen.com")];
-#[crate_type="lib"];
-#[license="Apache 2.0"];
+#![crate_id = "tools#0.1.0"]
+#![crate_type="lib"]
+#![license="Apache 2.0"]
 
-extern mod std;
-extern mod extra;
+#![feature(managed_boxes)]
+#![feature(globs)]
+
+extern crate libc;
+extern crate collections;
+extern crate sync;
 
 pub mod md5;
 pub mod stream;

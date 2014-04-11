@@ -15,20 +15,20 @@
 
 pub trait Stream<T:Eq> {
     ///Return if the stream has more values.
-    fn has_next(& self) -> bool;
+    fn has_next(&self) -> bool;
     ///Get a borrowed pointer to the first element of the stream.
     fn first<'a>(&'a self) -> &'a T;
     ///Move the stream forward by count units.
     fn pass(&mut self, count: uint);
     ///Apply a function to the first count units and return the results in a vector.
-    fn process<V: Copy>(&mut self, count: uint, f: &fn(&T) -> V) -> ~[V];
+    fn process<V: Clone>(&mut self, count: uint, f: |&T| -> V) -> ~[V];
     /**
      * Collect the first count elements and return them in a vector.
     *This is logically equivalent to self.process(count, id), modulo pointer types.
     */
     fn aggregate(&mut self, count: uint) -> ~[T];
     ///Aggregate elements of the stream until the head of the stream meets the predicate.
-    fn until(&mut self, f: &fn(&T) -> bool) -> ~[T];
+    fn until(&mut self, f: |&T| -> bool) -> ~[T];
     /**
      * Look for the elements of search in the first element of the stream.
      * If the first element of the stream matches any element, return the first match.
@@ -38,21 +38,23 @@ pub trait Stream<T:Eq> {
     fn pass_while(&mut self, to_skip: &[T]);
 }
 
-impl<T:Eq + Copy> Stream<T> for ~[T] {
+impl<T:Eq + Clone> Stream<T> for ~[T] {
     fn has_next(&self) -> bool {
         self.len() >= 1
     }
+
     fn first<'a>(&'a self) -> &'a T {
         if self.is_empty() {
             fail!("cannot get the first element of an empty stream!");
         }
         &'a self[0]
     }
+
     fn pass(&mut self, count: uint) {
-        self.process(count, |&x| x);
+        self.process(count, |x| x.clone());
     }
 
-    fn process<V: Copy>(&mut self, count: uint, f: &fn(&T) -> V) -> ~[V] {
+    fn process<V: Clone>(&mut self, count: uint, f: |&T| -> V) -> ~[V] {
         let mut c = 0;
         let mut ret: ~[V] = ~[];
         if !self.has_next() || count > self.len() as uint {
@@ -67,24 +69,24 @@ impl<T:Eq + Copy> Stream<T> for ~[T] {
     }
 
     fn aggregate(&mut self, count: uint) -> ~[T] {
-        self.process(count, |&x| x)
+        self.process(count, |x| x.clone())
     }
 
-    fn until(&mut self, f: &fn(&T) -> bool) -> ~[T] {
+    fn until(&mut self, f: |&T| -> bool) -> ~[T] {
         let mut ret: ~[T] = ~[];
         loop {
             if !self.has_next() || f(self.first()) {
                 return ret;
             }
-            ret.push(copy self[0]);
+            ret.push(self[0].clone());
             self.pass(1);
         }
     }
     fn expect(&self, search: &[T]) -> Option<T> {
         if !self.has_next() { return None; }
-        for search.iter().advance |&choice| {
-            if choice == self[0] {
-                return Some(choice);
+        for choice in search.iter() {
+            if *choice == self[0] {
+                return Some(choice.clone());
             }
         }
         None
@@ -100,9 +102,11 @@ impl<T:Eq + Copy> Stream<T> for ~[T] {
 
 #[cfg(test)]
 mod tests {
+    use stream::Stream;
+
     #[test]
     fn test_has_next() {
-        let empty: ~[~str] = ~ [];
+        let empty: ~[~str] = ~[];
         assert_eq!(empty.has_next(), false);
         assert_eq!((~[0,1,2]).has_next(), true);
     }
@@ -167,7 +171,7 @@ mod tests {
     #[should_fail]
     fn test_process_runover() {
         let mut stream = ~[0,1];
-        let f: &fn(&int) -> int = |&val| 2 * val;
+        let f: |&int| -> int = |&val| 2 * val;
         stream.process(3, f);
     }
     #[test]
@@ -180,16 +184,16 @@ mod tests {
     #[test]
     fn test_until() {
         let mut stream = ~[0,1,2,3,4,5,6,7,8,9];
-        let is_4: &fn(&int) -> bool = |&x| x == 4;
+        let is_4: |&int| -> bool = |&x| x == 4;
         assert_eq!(stream.until(is_4), ~[0,1,2,3]);
-        let is_9: &fn(&int) -> bool = |&x| x == 9;
+        let is_9: |&int| -> bool = |&x| x == 9;
         assert_eq!(stream.until(is_9), ~[4,5,6,7,8]);
     }
 
     #[test]
     fn test_until_runover() {
         let mut stream = ~[0,1,2,3,4,5,6,7,8,9];
-        let is_50: &fn(&int) -> bool = |&x| x == 50;
+        let is_50: |&int| -> bool = |&x| x == 50;
         assert_eq!(stream.until(is_50), ~[0,1,2,3,4,5,6,7,8,9]);
     }
     #[test]

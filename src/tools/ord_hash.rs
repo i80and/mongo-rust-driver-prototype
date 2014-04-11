@@ -14,21 +14,22 @@
  */
 
 use std::hash::Hash;
-use std::hashmap::*;
-use std::container::Container;
-use std::option::Option;
-use std::vec::*;
+use collections::hashmap::*;
+use std::container;
+use std::fmt;
+use std::slice;
+use std::vec;
 
 ///A hashmap which maintains iteration order using a list.
 pub struct OrderedHashmap<K,V> {
-    priv map: HashMap<K,V>,
-    priv order: ~[(@K,@V)]
+    map: HashMap<K,V>,
+    order: vec::Vec<(K,V)>
 }
 
-impl<K:Clone + Hash + Eq + Copy, V:Clone + Copy> Clone for OrderedHashmap<K,V> {
-    pub fn clone(&self) -> OrderedHashmap<K,V> {
+impl<K:Clone + Hash + TotalEq + Copy, V:Clone + Copy> Clone for OrderedHashmap<K,V> {
+    fn clone(&self) -> OrderedHashmap<K,V> {
         let mut m: HashMap<K,V> = HashMap::new();
-        for self.iter().advance |&(@k, @v)| {
+        for &(k, v) in self.iter() {
             m.insert(k.clone(), v.clone());
         }
         OrderedHashmap {
@@ -38,19 +39,19 @@ impl<K:Clone + Hash + Eq + Copy, V:Clone + Copy> Clone for OrderedHashmap<K,V> {
     }
 }
 
-impl<K: Hash + Eq,V> Container for OrderedHashmap<K,V> {
-    pub fn len(&self) -> uint { self.map.len() }
-    pub fn is_empty(&self) -> bool { self.map.is_empty() }
+impl<K: Hash + TotalEq,V> container::Container for OrderedHashmap<K,V> {
+    fn len(&self) -> uint { self.map.len() }
+    fn is_empty(&self) -> bool { self.map.is_empty() }
 }
 
-impl<K: Hash + Eq,V> Mutable for OrderedHashmap<K,V> {
-    pub fn clear(&mut self) {
+impl<K: Hash + TotalEq,V> Mutable for OrderedHashmap<K,V> {
+    fn clear(&mut self) {
         self.map = HashMap::new();
-        self.order = ~[];
+        self.order = vec::Vec::new();
     }
 }
 
-impl<K:Hash + Eq,V: Eq> Eq for OrderedHashmap<K,V> {
+impl<K:Hash + TotalEq,V: Eq> Eq for OrderedHashmap<K,V> {
     fn eq(&self, other: &OrderedHashmap<K,V>) -> bool {
         self.map == other.map && self.order == other.order
     }
@@ -60,14 +61,14 @@ impl<K:Hash + Eq,V: Eq> Eq for OrderedHashmap<K,V> {
 }
 
 ///Expose most of the Hashmap implementation.
-impl<'self, K: Hash + Eq + Copy,V: Copy> OrderedHashmap<K,V> {
+impl<K: Hash + TotalEq + Copy,V: Copy> OrderedHashmap<K,V> {
     pub fn len(&self) -> uint { self.map.len() }
     pub fn contains_key(&self, k: &K) -> bool { self.map.contains_key(k) }
-    pub fn iter(&'self self) -> VecIterator<'self, (@K, @V)> {
+    pub fn iter<'a>(&'a self) -> slice::Items<'a, (K, V)> {
         self.order.iter()
     }
-    pub fn rev_iter(&'self self) -> VecRevIterator<'self, (@K, @V)> {
-        self.order.rev_iter()
+    pub fn rev_iter<'a>(&'a self) -> slice::RevItems<'a, (K, V)> {
+        self.order.as_slice().rev_iter()
     }
     pub fn find<'a>(&'a self, k: &K) -> Option<&'a V> {
         self.map.find(k)
@@ -76,24 +77,24 @@ impl<'self, K: Hash + Eq + Copy,V: Copy> OrderedHashmap<K,V> {
         self.map.find_mut(k)
     }
     pub fn insert(&mut self, k: K, v: V) -> bool {
-        let success = self.map.insert(copy k, copy v);
-        if success { self.order.push((@k, @v)) }
+        let success = self.map.insert(k, v);
+        if success { self.order.push((k, v)) }
         success
     }
 
     pub fn new() -> OrderedHashmap<K,V> {
-        OrderedHashmap { map: HashMap::new(), order: ~[] }
+        OrderedHashmap { map: HashMap::new(), order: vec::Vec::new() }
     }
 }
 
-impl<K:Hash + Eq + ToStr + Copy,V:ToStr + Copy> ToStr for OrderedHashmap<K,V> {
-    pub fn to_str(&self) -> ~str {
+impl<K:Hash + TotalEq + ToStr + Copy,V:ToStr + Copy> fmt::Show for OrderedHashmap<K,V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = ~"{";
-        for self.iter().advance |&(@k, @v)| {
-            s.push_str(fmt!(" %s: %s, ", k.to_str(), v.to_str()));
+        for &(k, v) in self.iter() {
+            s.push_str(format!(" {}: {}, ", k.to_str(), v.to_str()));
         }
         s = s.slice(0, s.len()-2).to_owned();
         s.push_str("}");
-        s
+        write!(f.buf, "{}", s)
     }
 }
